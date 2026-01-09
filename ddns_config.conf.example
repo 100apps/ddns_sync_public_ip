@@ -2,9 +2,9 @@
 # Copy this file to ddns_config.conf and modify according to your setup
 
 # IP Detection Method
-# Options: "curl" or "ifconfig"
-IP_METHOD="curl"
-
+# Options: "curl" or "ifconfig" or "custom"
+IP_METHOD="ifconfig"
+CUSTOM_IP_COMMAND=""
 # If using curl method, specify the URL to check IP
 # Common options:
 # - https://api.ipify.org
@@ -15,7 +15,7 @@ IP_CHECK_URL="https://api.ipify.org"
 
 # If using ifconfig method, specify the network interface
 # Example: ppp0, eth0, ens33, etc.
-IFCONFIG_INTERFACE="ppp0"
+IFCONFIG_INTERFACE="eth0"
 
 # DNS API Configuration
 # Replace these with your actual DNS provider's API details

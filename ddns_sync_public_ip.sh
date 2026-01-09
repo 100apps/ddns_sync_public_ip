@@ -10,13 +10,18 @@ LOG_FILE="${SCRIPT_DIR}/ddns_sync.log"
 LAST_IP_FILE="${SCRIPT_DIR}/.last_ip"
 
 # Default values (can be overridden by config file)
-IP_METHOD="curl"  # Options: curl, ifconfig
+IP_METHOD="curl"  # Options: curl, ifconfig，custom
 IP_CHECK_URL="https://api.ipify.org"  # Used when IP_METHOD=curl
-IFCONFIG_INTERFACE=""  # Used when IP_METHOD=ifconfig (e.g., ppp0)
+IFCONFIG_INTERFACE="eth0"  # Used when IP_METHOD=ifconfig (e.g., ppp0)
 DNS_API_URL=""
 DNS_API_TOKEN=""
 DNS_RECORD_ID=""
 DNS_DOMAIN=""
+
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
 
 # Load configuration if exists
 if [ -f "$CONFIG_FILE" ]; then
@@ -27,15 +32,9 @@ if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
 fi
 
-# Logging function
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
-}
-
 # Get public IP address
 get_public_ip() {
     local ip=""
-    
     if [ "$IP_METHOD" = "curl" ]; then
         # Method 1: Using curl to query external service
         ip=$(curl -s --max-time 10 "$IP_CHECK_URL" 2>/dev/null)
@@ -52,11 +51,18 @@ get_public_ip() {
             log "ERROR: IFCONFIG_INTERFACE not specified in config"
             return 1
         fi
+    elif [ "$IP_METHOD" = "custom" ]; then
+        # Method 3: Using custom command
+        ip=$(eval "$CUSTOM_IP_COMMAND")
+        if [ $? -ne 0 ]; then
+            log "ERROR: Custom IP command failed with exit code $?"
+            return 1
+        fi
     else
         log "ERROR: Invalid IP_METHOD: $IP_METHOD"
         return 1
     fi
-    
+
     # Validate IP format (ensure each octet is 0-255)
     if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         # Validate each octet is <= 255
@@ -75,7 +81,7 @@ get_public_ip() {
         fi
     fi
     
-    log "ERROR: Failed to get valid IP address"
+    log "ERROR: Failed to get valid IP address (got: $ip)"
     return 1
 }
 
@@ -110,10 +116,10 @@ update_dns() {
     # This is a generic example, you need to customize it for your DNS provider
     local response
     if [ -n "$DNS_API_TOKEN" ]; then
-        response=$(curl -s -X POST "$DNS_API_URL" \
+        response=$(curl -s -X PATCH "$DNS_API_URL" \
             -H "Authorization: Bearer $DNS_API_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"ip\":\"$new_ip\",\"domain\":\"$DNS_DOMAIN\",\"record_id\":\"$DNS_RECORD_ID\"}" \
+            -d "{\"content\":\"$new_ip\",\"domain\":\"$DNS_DOMAIN\",\"record_id\":\"$DNS_RECORD_ID\"}" \
             2>&1)
     else
         response=$(curl -s -X POST "$DNS_API_URL" \
@@ -127,13 +133,12 @@ update_dns() {
     local curl_exit=$?
     if [ $curl_exit -eq 0 ]; then
         log "INFO: DNS update response: $response"
-        # Check if response indicates success (customize based on your DNS provider)
-        # Common success indicators: "success", "ok", status code 200, etc.
-        if echo "$response" | grep -qi "success\|\"ok\"\|\"status\":\"200\"\|\"code\":0"; then
-            log "SUCCESS: DNS record updated successfully"
-            return 0
+        # Check if response indicates failure first
+        if echo "$response" | grep -qi "\"success\":false"; then
+            log "ERROR: DNS update failed according to API response"
+            log "ERROR: Response: $response"
+            return 1
         else
-            log "WARNING: DNS API call succeeded but response unclear: $response"
             log "INFO: You may need to verify the update manually"
             return 0  # Still return success as API call worked
         fi
@@ -182,6 +187,7 @@ main() {
     fi
     
     # Step 1: Get current public IP
+    
     current_ip=$(get_public_ip)
     if [ $? -ne 0 ] || [ -z "$current_ip" ]; then
         log "ERROR: Failed to retrieve public IP"
