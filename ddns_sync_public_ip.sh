@@ -20,6 +20,10 @@ DNS_DOMAIN=""
 
 # Load configuration if exists
 if [ -f "$CONFIG_FILE" ]; then
+    # Validate config file before sourcing (basic security check)
+    if grep -q '[\$\(\)\`]' "$CONFIG_FILE"; then
+        log "WARNING: Config file contains potentially dangerous characters, loading anyway"
+    fi
     source "$CONFIG_FILE"
 fi
 
@@ -42,7 +46,8 @@ get_public_ip() {
     elif [ "$IP_METHOD" = "ifconfig" ]; then
         # Method 2: Using ifconfig to get IP from specific interface
         if [ -n "$IFCONFIG_INTERFACE" ]; then
-            ip=$(ifconfig "$IFCONFIG_INTERFACE" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+            # Use POSIX-compatible regex instead of Perl regex
+            ip=$(ifconfig "$IFCONFIG_INTERFACE" 2>/dev/null | grep 'inet ' | awk '{print $2}' | head -1 | sed 's/addr://')
         else
             log "ERROR: IFCONFIG_INTERFACE not specified in config"
             return 1
@@ -52,14 +57,26 @@ get_public_ip() {
         return 1
     fi
     
-    # Validate IP format
+    # Validate IP format (ensure each octet is 0-255)
     if [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-        echo "$ip"
-        return 0
-    else
-        log "ERROR: Failed to get valid IP address"
-        return 1
+        # Validate each octet is <= 255
+        local valid=true
+        IFS='.' read -ra OCTETS <<< "$ip"
+        for octet in "${OCTETS[@]}"; do
+            if [ "$octet" -gt 255 ]; then
+                valid=false
+                break
+            fi
+        done
+        
+        if [ "$valid" = true ]; then
+            echo "$ip"
+            return 0
+        fi
     fi
+    
+    log "ERROR: Failed to get valid IP address"
+    return 1
 }
 
 # Get last recorded IP
@@ -107,12 +124,22 @@ update_dns() {
     
     # Check if update was successful
     # Note: You may need to customize this check based on your DNS API response
-    if [ $? -eq 0 ]; then
+    local curl_exit=$?
+    if [ $curl_exit -eq 0 ]; then
         log "INFO: DNS update response: $response"
-        log "SUCCESS: DNS record updated successfully"
-        return 0
+        # Check if response indicates success (customize based on your DNS provider)
+        # Common success indicators: "success", "ok", status code 200, etc.
+        if echo "$response" | grep -qi "success\|\"ok\"\|\"status\":\"200\"\|\"code\":0"; then
+            log "SUCCESS: DNS record updated successfully"
+            return 0
+        else
+            log "WARNING: DNS API call succeeded but response unclear: $response"
+            log "INFO: You may need to verify the update manually"
+            return 0  # Still return success as API call worked
+        fi
     else
-        log "ERROR: Failed to update DNS record: $response"
+        log "ERROR: Failed to update DNS record (curl exit code: $curl_exit)"
+        log "ERROR: Response: $response"
         return 1
     fi
 }
@@ -120,7 +147,9 @@ update_dns() {
 # Check and setup crontab
 setup_crontab() {
     local script_path="$SCRIPT_DIR/ddns_sync_public_ip.sh"
-    local cron_command="* * * * * $script_path"
+    # Run every 5 minutes to avoid rate limiting with DNS providers
+    # Use "* * * * *" for every minute if rapid detection is critical
+    local cron_command="*/5 * * * * $script_path"
     
     # Check if crontab entry already exists
     if crontab -l 2>/dev/null | grep -q "$script_path"; then
@@ -128,7 +157,7 @@ setup_crontab() {
         return 0
     fi
     
-    log "INFO: Adding crontab entry to run every minute"
+    log "INFO: Adding crontab entry to run every 5 minutes (to avoid rate limiting)"
     
     # Add to crontab
     (crontab -l 2>/dev/null; echo "$cron_command") | crontab -

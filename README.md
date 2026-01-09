@@ -75,7 +75,7 @@ DNS_DOMAIN="your-domain.com"
 
 #### 自动运行（推荐）
 
-运行以下命令将脚本添加到crontab，实现每分钟自动检测：
+运行以下命令将脚本添加到crontab，实现每5分钟自动检测（避免DNS服务商限流）：
 
 ```bash
 ./ddns_sync_public_ip.sh --setup-cron
@@ -90,6 +90,10 @@ crontab -e
 添加以下行（将路径替换为实际路径）：
 
 ```
+# 每5分钟执行一次（推荐）
+*/5 * * * * /path/to/ddns_sync_public_ip.sh
+
+# 或每分钟执行一次（如需快速检测）
 * * * * * /path/to/ddns_sync_public_ip.sh
 ```
 
@@ -212,7 +216,7 @@ DNS_DOMAIN="your-domain.com"
 
 #### Automatic Execution (Recommended)
 
-Run the following command to add the script to crontab for automatic checks every minute:
+Run the following command to add the script to crontab for automatic checks every 5 minutes (to avoid DNS provider rate limiting):
 
 ```bash
 ./ddns_sync_public_ip.sh --setup-cron
@@ -227,6 +231,10 @@ crontab -e
 Add this line (replace with actual path):
 
 ```
+# Run every 5 minutes (recommended)
+*/5 * * * * /path/to/ddns_sync_public_ip.sh
+
+# Or run every minute (if rapid detection is needed)
 * * * * * /path/to/ddns_sync_public_ip.sh
 ```
 
