@@ -1,0 +1,47 @@
+# DDNS Configuration File
+# Copy this file to ddns_config.conf and modify according to your setup
+
+# IP Detection Method
+# Options: "curl" or "ifconfig"
+IP_METHOD="curl"
+
+# If using curl method, specify the URL to check IP
+# Common options:
+# - https://api.ipify.org
+# - https://ifconfig.me
+# - https://icanhazip.com
+# - https://ipinfo.io/ip
+IP_CHECK_URL="https://api.ipify.org"
+
+# If using ifconfig method, specify the network interface
+# Example: ppp0, eth0, ens33, etc.
+IFCONFIG_INTERFACE="ppp0"
+
+# DNS API Configuration
+# Replace these with your actual DNS provider's API details
+
+# DNS API URL (endpoint for updating DNS records)
+DNS_API_URL="https://api.your-dns-provider.com/update"
+
+# DNS API Token/Key (if required by your provider)
+DNS_API_TOKEN="your_api_token_here"
+
+# DNS Record ID (if required by your provider)
+DNS_RECORD_ID="your_record_id"
+
+# Domain to update
+DNS_DOMAIN="your-domain.com"
+
+# Examples for common DNS providers:
+#
+# Cloudflare:
+# DNS_API_URL="https://api.cloudflare.com/client/v4/zones/ZONE_ID/dns_records/RECORD_ID"
+# DNS_API_TOKEN="your_cloudflare_api_token"
+#
+# Aliyun (阿里云):
+# DNS_API_URL="https://alidns.aliyuncs.com/"
+# DNS_API_TOKEN="your_aliyun_access_key"
+#
+# DNSPod (腾讯云):
+# DNS_API_URL="https://dnsapi.cn/Record.Ddns"
+# DNS_API_TOKEN="your_dnspod_token"

@@ -1,0 +1,8 @@
+# Log files
+ddns_sync.log
+
+# Last IP record
+.last_ip
+
+# Configuration file (contains sensitive info)
+ddns_config.conf
